@@ -68,6 +68,8 @@ fi
 echo "   swap ${SWAP} GiB free, OUT_DIR $OUT_DIR ${FREE} GB free, webview ok, manifest ok"
 echo "   device tree $(git -C "$DT" rev-parse --short HEAD) $(git -C "$DT" log -1 --format=%s | cut -c1-70)"
 
+# envsetup.sh and lunch read unset variables (ANDROID_GLOBAL_BUILD_PATHS, ...): no set -u past here.
+set +u
 source build/envsetup.sh
 lunch "${PRODUCT}-${RELEASE}-${VARIANT}" || { echo "LUNCH_FAILED"; exit 2; }
 date "+BUILD_START %F %T"

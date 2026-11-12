@@ -31,6 +31,8 @@ NAMES=$(ls "$V31/vndk-core" "$V31/vndk-sp" | sed -n 's/\.so$//p' | sort -u)
 echo "v31 snapshot: $(echo "$NAMES" | wc -l) libraries"
 
 cd "$TOP" || exit 2
+# envsetup.sh and lunch read unset variables (ANDROID_GLOBAL_BUILD_PATHS, ...): no set -u past here.
+set +u
 source build/envsetup.sh
 lunch aosp_arm64-bp4a-userdebug || fail "lunch"
 date "+ANALYSIS_START %F %T"
