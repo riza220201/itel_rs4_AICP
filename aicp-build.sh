@@ -2,7 +2,7 @@
 # aicp-build.sh -- build AICP w16.2 for the itel RS4 on THIS box (operator 11-13: no rented server).
 #
 #   TOP=/mnt/Data/lineage-23.2            source tree
-#   OUT_DIR=/mnt/external_nvme/aicp-out   see OUT below
+#   OUT_TARGET=/mnt/external_nvme/aicp-out   where $TOP/out (a symlink) points; see OUT below
 #   PRODUCT=aicp_S666LN RELEASE=bp4a VARIANT=userdebug GOAL=bacon
 #   DIRTY_OK=1                            build an uncommitted device tree (loud; never for a release)
 #
@@ -14,14 +14,21 @@
 #
 # OUT: /mnt/Data holds the source (155 GB free after the sync); one A16 out was estimated at
 # 130-180 GB (JOURNAL 11-12 (f)), which leaves no margin there. /mnt/external_nvme (USB NVMe,
-# ext4) had 256 GB free on 11-13. Override OUT_DIR to move it.
+# ext4) had 256 GB free on 11-13. So the out dir lives there -- but as $TOP/out, a SYMLINK,
+# with OUT_DIR left at its default. An absolute OUT_DIR outside the tree breaks soong:
+#   platform_testing/Android.bp:728 "continuous_instrumentation_metric_tests": Path is outside
+#   directory: /mnt/external_nvme/aicp-out/host/linux-x86/bin/perfetto_trace_processor_shell
+# because build/soong/ci_tests/ci_test_package_zip.go:300 skips host files only when their path
+# starts with "out" (it assumes OUT_DIR=out). Soong resolves a symlinked out itself
+# (ui/build/sandbox_linux.go EvalSymlinks(outDir)).
 #
 # Every preflight below has cost a real build before (Knowledge build-system-gotchas,
 # crDroid build-and-sign.sh, Advan 09-29).
 set -u
 TOP="${TOP:-/mnt/Data/lineage-23.2}"
 REC="$(cd "$(dirname "$0")" && pwd)"
-export OUT_DIR="${OUT_DIR:-/mnt/external_nvme/aicp-out}"
+OUT_TARGET="${OUT_TARGET:-/mnt/external_nvme/aicp-out}"
+unset OUT_DIR OUT_DIR_COMMON_BASE
 PRODUCT="${PRODUCT:-aicp_S666LN}"
 RELEASE="${RELEASE:-bp4a}"
 VARIANT="${VARIANT:-userdebug}"
@@ -39,10 +46,17 @@ grep -q '^/swapfile_compile ' /proc/swaps || die "/swapfile_compile is not activ
 SWAP=$(awk '/SwapFree/{print int($2/1048576)}' /proc/meminfo)
 [ "${SWAP:-0}" -ge 40 ] || die "only ${SWAP} GiB swap free; soong's graph needs RAM+swap of ~50+ GiB"
 
-mkdir -p "$OUT_DIR" || die "cannot create OUT_DIR=$OUT_DIR"
-FREE=$(df -BG --output=avail "$OUT_DIR" | tail -1 | tr -dc 0-9)
-if [ -d "$OUT_DIR/soong" ]; then NEED=40; else NEED=200; fi
-[ "${FREE:-0}" -ge "$NEED" ] || die "only ${FREE} GB free for OUT_DIR=$OUT_DIR (need ${NEED} for a $( [ $NEED = 200 ] && echo fresh || echo warm) out)"
+mkdir -p "$OUT_TARGET" || die "cannot create $OUT_TARGET"
+if [ -L "$TOP/out" ]; then
+  [ "$(readlink -f "$TOP/out")" = "$(readlink -f "$OUT_TARGET")" ] || die "$TOP/out points at $(readlink -f "$TOP/out"), not $OUT_TARGET"
+elif [ -e "$TOP/out" ]; then
+  die "$TOP/out is a real directory; move it and make it a symlink to $OUT_TARGET"
+else
+  ln -s "$OUT_TARGET" "$TOP/out"
+fi
+FREE=$(df -BG --output=avail "$OUT_TARGET" | tail -1 | tr -dc 0-9)
+if [ -d "$OUT_TARGET/soong" ]; then NEED=40; else NEED=200; fi
+[ "${FREE:-0}" -ge "$NEED" ] || die "only ${FREE} GB free for the out dir $OUT_TARGET (need ${NEED} for a $( [ $NEED = 200 ] && echo fresh || echo warm) out)"
 
 # a sync and a build on one tree: the build reads a half-updated source
 ( exec 9>"$TOP/.sync.lock"; flock -n 9 ) || die "a repo sync holds $TOP/.sync.lock"
@@ -65,7 +79,7 @@ if [ -n "$(git -C "$DT" status --porcelain)" ]; then
   echo "🔴 DIRTY_OK=1: building UNCOMMITTED device-tree changes; this build is not reproducible"
 fi
 [ -d vendor/itel/S666LN ] || die "vendor/itel/S666LN is missing (vendor tree not generated yet)"
-echo "   swap ${SWAP} GiB free, OUT_DIR $OUT_DIR ${FREE} GB free, webview ok, manifest ok"
+echo "   swap ${SWAP} GiB free, out -> $OUT_TARGET ${FREE} GB free, webview ok, manifest ok"
 echo "   device tree $(git -C "$DT" rev-parse --short HEAD) $(git -C "$DT" log -1 --format=%s | cut -c1-70)"
 
 # envsetup.sh and lunch read unset variables (ANDROID_GLOBAL_BUILD_PATHS, ...): no set -u past here.
@@ -77,5 +91,5 @@ m "$GOAL"
 rc=$?
 echo "BUILD_RC=$rc"
 date "+BUILD_END %F %T"
-[ "$rc" -eq 0 ] && ls -la "$OUT_DIR/target/product/S666LN/"*.zip 2>/dev/null
+[ "$rc" -eq 0 ] && ls -la "$TOP/out/target/product/S666LN/"*.zip 2>/dev/null
 exit $rc

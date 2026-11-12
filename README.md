@@ -42,6 +42,7 @@ setsid nohup bash ~/itel_rs4_AICP/build-and-sign.sh > /dev/null 2>&1 < /dev/null
 ```
 
 Host: 12 threads, 14 GiB RAM, **≥ 40 GiB swap free** (soong's A16 graph needs it; `/swapfile_compile` is not in
-fstab — re-enable it after a power cut), out dir on `/mnt/external_nvme/aicp-out` (≥ 200 GB free for a fresh out).
+fstab — re-enable it after a power cut). The out dir is `$TOP/out`, a **symlink** to `/mnt/external_nvme/aicp-out`
+(≥ 200 GB free for a fresh out) — never an absolute `OUT_DIR`: AOSP's `ci_test_package_zip.go` assumes paths start with `out`.
 
 Not in this repo: signing keys, stock firmware and blobs, built zips, logs.

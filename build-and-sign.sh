@@ -6,7 +6,7 @@
 #
 #   SIGN=1   release-sign after the build. NOT WRITTEN YET: test builds are test-keys,
 #            and release keys stay out of the recipe until a release is decided.
-#   Every aicp-build.sh variable (TOP, OUT_DIR, PRODUCT, RELEASE, VARIANT, GOAL, DIRTY_OK)
+#   Every aicp-build.sh variable (TOP, OUT_TARGET, PRODUCT, RELEASE, VARIANT, GOAL, DIRTY_OK)
 #   passes through.
 #
 # WHY (crDroid recipe, 08-19 / 08-28): the steps were correct in four journals and nowhere
@@ -52,7 +52,7 @@ if [ "$BRC" -ne 0 ] || [ "${IRC:-1}" != "0" ]; then
   die "build rc=$BRC inner=${IRC:-none}"
 fi
 
-OUTP="${OUT_DIR:-/mnt/external_nvme/aicp-out}/target/product/S666LN"
+OUTP="$TOP/out/target/product/S666LN"
 Z=$(ls -t "$OUTP"/aicp_S666LN*.zip 2>/dev/null | head -1)
 [ -n "$Z" ] || die "artifact-not-found in $OUTP"
 say "ARTIFACT $Z  $(stat -c %s "$Z") B"

@@ -1,4 +1,8 @@
 #!/bin/bash
+# ⛔ SUPERSEDED 11-13 (project JOURNAL (e), (g)): generic products are a dead end in this tree, the A16
+# vendor libs come from our device build, and this script still uses an absolute OUT_DIR, which
+# soong rejects (see aicp-build.sh OUT). Kept as the record of what was tried.
+#
 # tools/build-a16-vendor-libs.sh -- build the A16 vendor variants of every library in AOSP's v31
 # VNDK snapshot, on a device-independent generic product ($GENERIC), and collect them in one directory.
 #
