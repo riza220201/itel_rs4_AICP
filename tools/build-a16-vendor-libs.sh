@@ -1,6 +1,6 @@
 #!/bin/bash
 # tools/build-a16-vendor-libs.sh -- build the A16 vendor variants of every library in AOSP's v31
-# VNDK snapshot, on the device-independent aosp_arm64 product, and collect them in one directory.
+# VNDK snapshot, on the device-independent lineage_gsi_arm64 product, and collect them in one directory.
 #
 #   TOP=/mnt/Data/lineage-23.2   OUT_DIR=/mnt/external_nvme/aicp-out
 #   -> $OUT_DIR/a16-vendor-libs/{lib,lib64}/   + RESULT (OK / FAIL <why>)
@@ -43,10 +43,13 @@ cd "$TOP" || exit 2
 # envsetup.sh and lunch read unset variables (ANDROID_GLOBAL_BUILD_PATHS, ...): no set -u past here.
 set +u
 source build/envsetup.sh
-lunch aosp_arm64-bp4a-userdebug || fail "lunch"
+# Not aosp_arm64: in this Lineage-derived tree its aosp_system_image depends on AOSP's Calendar,
+# which Lineage replaces (Etar) -- "depends on undefined module". lineage_gsi_arm64 is AICP's own.
+lunch lineage_gsi_arm64-bp4a-userdebug || fail "lunch"
+POUT=$(get_build_var PRODUCT_OUT)
 date "+ANALYSIS_START %F %T"
 m module-info || fail "m module-info"
-MI="$OUT_DIR/target/product/generic_arm64/module-info.json"
+MI="$POUT/module-info.json"
 [ -s "$MI" ] || fail "no $MI"
 
 # Which of the v31 names A16 still builds a vendor variant of. The rest are Check B by definition.
@@ -67,7 +70,7 @@ date "+BUILD_START %F %T"
 m $(sed 's/$/.vendor/' "$DEST/a16-has.txt") || fail "m <.vendor libs>"
 date "+BUILD_END %F %T"
 
-P="$OUT_DIR/target/product/generic_arm64/vendor"
+P="$POUT/vendor"
 for d in lib lib64; do
   mkdir -p "$DEST/$d"
   while read -r n; do
