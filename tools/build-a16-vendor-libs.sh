@@ -20,7 +20,16 @@ DEST="$OUT_DIR/a16-vendor-libs"
 R="$DEST/RESULT"
 mkdir -p "$DEST"; rm -f "$R"
 fail(){ echo "FAIL $*" | tee "$R"; exit 1; }
-trap '[ -s "$R" ] || echo "FAIL unexpected-exit" > "$R"' EXIT
+# The device tree imports the vendor/itel/S666LN soong namespace, and soong parses every
+# Android.bp whatever the product: until the vendor tree exists, analysis of ANY product stops on
+# "namespace vendor/itel/S666LN does not exist". This build needs no device file, so hide
+# device/itel for its duration only (soong's Finder marker; removed on any exit).
+HIDE=""
+if [ ! -d "$TOP/vendor/itel/S666LN" ] && [ ! -e "$TOP/device/itel/.find-ignore" ]; then
+  HIDE="$TOP/device/itel/.find-ignore"; : > "$HIDE"
+  echo "device/itel hidden for this build (no vendor tree yet)"
+fi
+trap '[ -n "$HIDE" ] && rm -f "$HIDE"; [ -s "$R" ] || echo "FAIL unexpected-exit" > "$R"' EXIT
 
 grep -q '^/swapfile_compile ' /proc/swaps || fail "/swapfile_compile not active"
 SWAP=$(awk '/SwapFree/{print int($2/1048576)}' /proc/meminfo)
