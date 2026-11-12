@@ -1,0 +1,24 @@
+# itel RS4 (S666LN) -> AICP w16.2 build recipe. The repo is the RECIPE: local_manifests/,
+# sync.sh, apply-overlays.sh, the build scripts, tools/, README. Everything proprietary,
+# huge, secret or personal stays local (same rules as ~/itel_rs4_Crdroid).
+
+# Private signing keys -- NEVER commit
+keys-priv/
+*.pk8
+*.x509.pem
+
+# Built ROM zips and logs
+out-zips/
+logs/
+*.zip
+*.log
+
+# Proprietary stock firmware / blobs (the vendor tree is generated from stock rev 28 elsewhere)
+*.stockfw.zip
+blobs*/
+
+# Editor / script backups
+*.bak
+*.bak-*
+*.swp
+*~
