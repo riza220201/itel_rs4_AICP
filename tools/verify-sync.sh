@@ -14,6 +14,8 @@
 set -u
 TOP="${TOP:-/mnt/Data/lineage-23.2}"
 STATUS="${STATUS:-1}"
+REC="$(cd "$(dirname "$0")/.." && pwd)"     # before the cd below: $0 may be relative
+[ -f "$REC/tree-edits.txt" ] || { echo "FAIL  no $REC/tree-edits.txt"; exit 2; }
 cd "$TOP" || exit 2
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 fail=0
@@ -61,8 +63,16 @@ done
 # 6
 if [ "$STATUS" = "1" ]; then
   repo status -j"$(nproc)" > "$W/status" 2>&1
-  dirty=$(grep -c '^project ' "$W/status")
-  [ "$dirty" -eq 0 ] && ok "repo status: every worktree clean" || { bad "repo status: $dirty dirty project(s):"; grep '^project ' "$W/status" | sed 's/^/      /'; }
+  # The recipe's own tree edits (tree-edits.txt: one path per line, relative to TOP) are the
+  # only changes allowed; a project counts as dirty if anything ELSE is changed in it.
+  dirty=0
+  for p in $(sed -n 's/^project \([^ ]*\)\/ .*/\1/p' "$W/status"); do
+    other=$(git -C "$p" status --porcelain --untracked-files=all | sed "s|^...|$p/|" \
+            | grep -vxF -f <(grep -v '^#' "$REC/tree-edits.txt" 2>/dev/null) || true)
+    [ -z "$other" ] && continue
+    dirty=$((dirty+1)); echo "      dirty: $p"; echo "$other" | sed 's/^/        /'
+  done
+  [ "$dirty" -eq 0 ] && ok "repo status: every worktree clean (recipe edits excepted: tree-edits.txt)" || bad "repo status: $dirty dirty project(s)"
 else
   echo "skip  repo status (STATUS=0)"
 fi
