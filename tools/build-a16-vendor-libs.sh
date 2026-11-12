@@ -1,6 +1,6 @@
 #!/bin/bash
 # tools/build-a16-vendor-libs.sh -- build the A16 vendor variants of every library in AOSP's v31
-# VNDK snapshot, on the device-independent lineage_gsi_arm64 product, and collect them in one directory.
+# VNDK snapshot, on a device-independent generic product ($GENERIC), and collect them in one directory.
 #
 #   TOP=/mnt/Data/lineage-23.2   OUT_DIR=/mnt/external_nvme/aicp-out
 #   -> $OUT_DIR/a16-vendor-libs/{lib,lib64}/   + RESULT (OK / FAIL <why>)
@@ -43,9 +43,11 @@ cd "$TOP" || exit 2
 # envsetup.sh and lunch read unset variables (ANDROID_GLOBAL_BUILD_PATHS, ...): no set -u past here.
 set +u
 source build/envsetup.sh
-# Not aosp_arm64: in this Lineage-derived tree its aosp_system_image depends on AOSP's Calendar,
-# which Lineage replaces (Etar) -- "depends on undefined module". lineage_gsi_arm64 is AICP's own.
-lunch lineage_gsi_arm64-bp4a-userdebug || fail "lunch"
+# Not aosp_arm64 nor lineage_gsi_arm64: both set PRODUCT_SOONG_DEFINED_SYSTEM_IMAGE :=
+# aosp_system_image, whose deps (build/make/target/product/gsi/Android.bp:177) name AOSP's
+# "Calendar" -- no such module in this tree (Lineage ships Etar) -> "depends on undefined module".
+GENERIC="${GENERIC:-lineage_sdk_phone_arm64}"
+lunch "$GENERIC-bp4a-userdebug" || fail "lunch $GENERIC"
 POUT=$(get_build_var PRODUCT_OUT)
 date "+ANALYSIS_START %F %T"
 m module-info || fail "m module-info"
