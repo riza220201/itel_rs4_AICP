@@ -50,33 +50,16 @@ sed -n 's/^\(published\|kernel\):  */   \1: /p' "$P/IMPORTED"
 echo "   kernel package @ $(git -C "$KPKG" rev-parse --short HEAD) ($(git -C "$KPKG" rev-parse --abbrev-ref HEAD))"
 
 
-# --- step 2: one definition of the protobuf vendorcompat prebuilts ----------
-# Soong analysis of ANY product stops in under a minute on this tree:
-#   error: hardware/lineage/compat/Android.bp:679:1: module
-#     "prebuilt_libprotobuf-cpp-full-3.9.1-vendorcompat" already defined
-#     prebuilts/misc/protobuf_vendorcompat/Android.bp:13:1 <-- previous definition here
-# (x4: full/lite x 3.9.1/21.12). Both are upstream: AOSP's prebuilts/misc at
-# android-16.0.0_r4 (AICP w16.2's AOSP tag) and LineageOS's hardware/lineage/
-# compat at lineage-23.2. Keep LineageOS's -- extract-utils' lib_fixups map the
-# protobuf sonames to these -vendorcompat names precisely for it -- and hide
-# AOSP's with soong's own Finder marker (build/soong/ui/build/finder.go:
-# `.find-ignore` prunes the directory it sits in), an untracked file, so no
-# tracked AOSP file is edited and a sync never conflicts with it.
-# What it costs this device, measured on stock rev 28: our blobs need only the
-# 3.9.1 pair (6 full + 11 lite references), and both 3.9.1 copies are
-# byte-identical to AOSP's; only the 21.12 pair differs, and nothing of ours
-# links it. tools/verify-sync.sh accepts exactly this marker (tree-edits.txt).
-echo "== step 2: hide AOSP's duplicate protobuf vendorcompat prebuilts =="
-PV="$TREE/prebuilts/misc/protobuf_vendorcompat"
-HL="$TREE/hardware/lineage/compat/Android.bp"
-if grep -q '"libprotobuf-cpp-full-3.9.1-vendorcompat"' "$HL" 2>/dev/null; then
-  [ -f "$PV/.find-ignore" ] || : > "$PV/.find-ignore"
-  echo "   $PV/.find-ignore present (LineageOS's copies are the definition)"
-else
-  # Upstream resolved it (LineageOS dropped theirs): the marker would now hide the ONLY copy.
-  rm -f "$PV/.find-ignore"
-  echo "   hardware/lineage/compat no longer defines them -- marker removed, AOSP's copies stay"
-fi
+# --- step 2: WITHDRAWN 11-13, a documented no-op ------------------------------
+# It hid AOSP's prebuilts/misc/protobuf_vendorcompat (duplicates of
+# hardware/lineage/compat's protobuf vendorcompat prebuilts) with a .find-ignore
+# marker, after a GENERIC product's analysis died on the duplicate. Our product
+# never needed it: vendor/aicp/config/common.mk:6 already sets
+#     PRODUCT_SOURCE_ROOT_DIRS += -prebuilts/misc/protobuf_vendorcompat
+# for every AICP product (seen in lunch's PRODUCT_SOURCE_ROOT_DIRS). This step
+# now only removes a marker an earlier run may have left.
+echo "== step 2: (withdrawn) remove the old protobuf .find-ignore marker if present =="
+rm -f "$TREE/prebuilts/misc/protobuf_vendorcompat/.find-ignore"
 
 
 echo "===================================================================="

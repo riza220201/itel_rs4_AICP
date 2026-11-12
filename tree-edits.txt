@@ -1,3 +1,2 @@
 # Every change apply-overlays.sh makes inside repo-managed projects, one path per line, relative
-# to TOP. tools/verify-sync.sh accepts these and nothing else.
-prebuilts/misc/protobuf_vendorcompat/.find-ignore
+# to TOP. tools/verify-sync.sh accepts these and nothing else. (None at present: step 2 withdrawn.)
