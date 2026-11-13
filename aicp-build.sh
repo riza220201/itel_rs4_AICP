@@ -24,7 +24,7 @@
 # starts with "out" (it assumes OUT_DIR=out). Soong resolves a symlinked out itself
 # (ui/build/sandbox_linux.go EvalSymlinks(outDir)).
 #
-# Every preflight below has cost a real build before (Knowledge build-system-gotchas,
+# Every preflight below has cost a real build before (build-system gotchas,
 # crDroid build-and-sign.sh, Advan 09-29).
 set -u
 TOP="${TOP:-/mnt/Data/lineage-23.2}"
