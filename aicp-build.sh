@@ -2,7 +2,8 @@
 # aicp-build.sh -- build AICP w16.2 for the itel RS4 (the 14 GiB home box, or a rented build server).
 #
 #   TOP=/mnt/Data/lineage-23.2            source tree
-#   OUT_TARGET=/mnt/external_nvme/aicp-out   where $TOP/out (a symlink) points; see OUT below
+#   OUT_TARGET=/mnt/external_nvme/aicp-out   where $TOP/out (a symlink) points; see OUT below.
+#                                         OUT_TARGET=$TOP/out = a real out dir in the tree
 #   PRODUCT=aicp_S666LN RELEASE=bp4a VARIANT=userdebug GOAL=bacon
 #   DIRTY_OK=1                            build an uncommitted device tree (loud; never for a release)
 #   KEEP_GOING=1                          m -k: build everything not behind a failure and report ALL
@@ -64,8 +65,14 @@ done
 SWAP=$(awk '/SwapFree/{print int($2/1048576)}' /proc/meminfo)
 [ $(( ${MEM:-0} + ${SWAP:-0} )) -ge 50 ] || die "only ${MEM} GiB RAM + ${SWAP} GiB swap usable; soong's graph needs ~50+ GiB"
 
-mkdir -p "$OUT_TARGET" || die "cannot create $OUT_TARGET"
-if [ -L "$TOP/out" ]; then
+if [ "$OUT_TARGET" = "$TOP/out" ]; then
+  # A host with room on the tree's own filesystem (the rented server): a real
+  # $TOP/out, which remote execution (RBE) wants inside its exec root anyway.
+  [ -L "$TOP/out" ] && die "$TOP/out is a symlink, but OUT_TARGET=$TOP/out asks for a real directory"
+  mkdir -p "$TOP/out" || die "cannot create $TOP/out"
+elif ! mkdir -p "$OUT_TARGET"; then
+  die "cannot create $OUT_TARGET"
+elif [ -L "$TOP/out" ]; then
   [ "$(readlink -f "$TOP/out")" = "$(readlink -f "$OUT_TARGET")" ] || die "$TOP/out points at $(readlink -f "$TOP/out"), not $OUT_TARGET"
 elif [ -e "$TOP/out" ]; then
   die "$TOP/out is a real directory; move it and make it a symlink to $OUT_TARGET"
