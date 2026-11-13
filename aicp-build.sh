@@ -1,5 +1,5 @@
 #!/bin/bash
-# aicp-build.sh -- build AICP w16.2 for the itel RS4 on THIS box (operator 11-13: no rented server).
+# aicp-build.sh -- build AICP w16.2 for the itel RS4 (the 14 GiB home box, or a rented build server).
 #
 #   TOP=/mnt/Data/lineage-23.2            source tree
 #   OUT_TARGET=/mnt/external_nvme/aicp-out   where $TOP/out (a symlink) points; see OUT below
@@ -7,6 +7,9 @@
 #   DIRTY_OK=1                            build an uncommitted device tree (loud; never for a release)
 #   KEEP_GOING=1                          m -k: build everything not behind a failure and report ALL
 #                                         walls in one run (a first build's walls are independent)
+#   JOBS=N                                m -jN (default: soong's own, nproc+2). On a SHARED server
+#                                         set it: nproc there counts every tenant's cores, and the
+#                                         per-user cgroup memory cap is what a -j192 link storm hits
 #
 # apply-overlays.sh MUST have been run against TOP first (build-and-sign.sh does both).
 #
@@ -43,10 +46,23 @@ cd "$TOP" || exit 2
 echo "== preflight"
 # soong holds the whole module graph: ~40-47 GB working set on a 14 GiB host (A16 AOSPA),
 # OOM-killed at 8.76 GiB without swap, and misreported as "bootstrap failed".
-# /swapfile_compile is not in fstab: a power cut drops it silently.
-grep -q '^/swapfile_compile ' /proc/swaps || die "/swapfile_compile is not active (not in fstab): sudo swapon /swapfile_compile"
+# The gate is what the build can really use: available RAM, capped by any cgroup memory.max
+# on the way up from this process (a shared server caps each user), plus free swap.
+# On the home box /swapfile_compile is not in fstab: a power cut drops it silently.
+if [ -e /swapfile_compile ]; then
+  grep -q '^/swapfile_compile ' /proc/swaps || die "/swapfile_compile is not active (not in fstab): sudo swapon /swapfile_compile"
+fi
+MEM=$(awk '/MemAvailable/{print int($2/1048576)}' /proc/meminfo)
+cg=/sys/fs/cgroup$(awk -F: '$1=="0"{print $3}' /proc/self/cgroup)
+while [ "${cg#/sys/fs/cgroup}" != "$cg" ] && [ "$cg" != /sys/fs/cgroup ]; do
+  if [ -r "$cg/memory.max" ] && [ "$(cat "$cg/memory.max")" != max ]; then
+    left=$(( ( $(cat "$cg/memory.max") - $(cat "$cg/memory.current") ) / 1073741824 ))
+    [ "$left" -lt "$MEM" ] && MEM=$left
+  fi
+  cg=$(dirname "$cg")
+done
 SWAP=$(awk '/SwapFree/{print int($2/1048576)}' /proc/meminfo)
-[ "${SWAP:-0}" -ge 40 ] || die "only ${SWAP} GiB swap free; soong's graph needs RAM+swap of ~50+ GiB"
+[ $(( ${MEM:-0} + ${SWAP:-0} )) -ge 50 ] || die "only ${MEM} GiB RAM + ${SWAP} GiB swap usable; soong's graph needs ~50+ GiB"
 
 mkdir -p "$OUT_TARGET" || die "cannot create $OUT_TARGET"
 if [ -L "$TOP/out" ]; then
@@ -86,7 +102,7 @@ if [ -n "$(git -C "$DT" status --porcelain)" ]; then
   echo "🔴 DIRTY_OK=1: building UNCOMMITTED device-tree changes; this build is not reproducible"
 fi
 [ -d vendor/itel/S666LN ] || die "vendor/itel/S666LN is missing (vendor tree not generated yet)"
-echo "   swap ${SWAP} GiB free, out -> $OUT_TARGET ${FREE} GB free, webview ok, manifest ok"
+echo "   RAM ${MEM} + swap ${SWAP} GiB usable, out -> $OUT_TARGET ${FREE} GB free, webview ok, manifest ok"
 echo "   device tree $(git -C "$DT" rev-parse --short HEAD) $(git -C "$DT" log -1 --format=%s | cut -c1-70)"
 
 # envsetup.sh and lunch read unset variables (ANDROID_GLOBAL_BUILD_PATHS, ...): no set -u past here.
@@ -94,7 +110,8 @@ set +u
 source build/envsetup.sh
 lunch "${PRODUCT}-${RELEASE}-${VARIANT}" || { echo "LUNCH_FAILED"; exit 2; }
 date "+BUILD_START %F %T"
-if [ "${KEEP_GOING:-0}" = 1 ]; then echo "KEEP_GOING=1: m -k"; m -k "$GOAL"; else m "$GOAL"; fi
+J=${JOBS:+-j$JOBS}
+if [ "${KEEP_GOING:-0}" = 1 ]; then echo "KEEP_GOING=1: m -k $J"; m $J -k "$GOAL"; else m $J "$GOAL"; fi
 rc=$?
 echo "BUILD_RC=$rc"
 date "+BUILD_END %F %T"
