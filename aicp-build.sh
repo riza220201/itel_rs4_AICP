@@ -58,6 +58,11 @@ FREE=$(df -BG --output=avail "$OUT_TARGET" | tail -1 | tr -dc 0-9)
 if [ -d "$OUT_TARGET/soong" ]; then NEED=40; else NEED=200; fi
 [ "${FREE:-0}" -ge "$NEED" ] || die "only ${FREE} GB free for the out dir $OUT_TARGET (need ${NEED} for a $( [ $NEED = 200 ] && echo fresh || echo warm) out)"
 
+# Host tools the tree's makefiles shell out to at PARSE time -- a missing one costs a whole
+# analysis before kati says so (analysis-7: vendor/aicp/bootanimation/Android.mk:64 "stop",
+# ImageMagick's mogrify generates AICP's boot animation). Debian: apt install imagemagick.
+command -v mogrify >/dev/null || die "ImageMagick (mogrify) is not installed: sudo apt install imagemagick"
+
 # a sync and a build on one tree: the build reads a half-updated source
 ( exec 9>"$TOP/.sync.lock"; flock -n 9 ) || die "a repo sync holds $TOP/.sync.lock"
 

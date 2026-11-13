@@ -41,7 +41,7 @@ setsid nohup bash ~/itel_rs4_AICP/build-and-sign.sh > /dev/null 2>&1 < /dev/null
 # -> /mnt/Data/lineage-23.2/tmp-release/run-<ts>/{VERDICT,driver.log,build.log}
 ```
 
-Host: 12 threads, 14 GiB RAM, **≥ 40 GiB swap free** (soong's A16 graph needs it; `/swapfile_compile` is not in
+Host: Debian 13; beyond the AOSP basics it needs **`imagemagick`** (AICP's boot animation is generated with `mogrify`). 12 threads, 14 GiB RAM, **≥ 40 GiB swap free** (soong's A16 graph needs it; `/swapfile_compile` is not in
 fstab — re-enable it after a power cut). The out dir is `$TOP/out`, a **symlink** to `/mnt/external_nvme/aicp-out`
 (≥ 200 GB free for a fresh out) — never an absolute `OUT_DIR`: AOSP's `ci_test_package_zip.go` assumes paths start with `out`.
 
