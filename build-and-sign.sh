@@ -73,9 +73,15 @@ say "PROPS ro.adb.secure=$ADBSEC ro.debuggable=$DBG persist.sys.usb.config=$USBC
 if [ -n "${WITH_ADB_INSECURE:-}" ]; then
   [ "$ADBSEC" = 0 ] && [ "$DBG" = 1 ] \
     || die "WITH_ADB_INSECURE set but the image is not insecure+debuggable"
-  case "$Z" in *-BRINGUP-ADBINSECURE.zip) ;; *)
-    mv "$Z" "${Z%.zip}-BRINGUP-ADBINSECURE.zip" || die "bringup-rename"; Z="${Z%.zip}-BRINGUP-ADBINSECURE.zip";;
-  esac
+  # AICP hard-links the OTA package to its version name: EVERY top-level name of this file
+  # gets the suffix, or the insecure image stays behind under a release-looking name.
+  for f in $(find "$OUTP" -maxdepth 1 -name '*.zip' -samefile "$Z"); do
+    case "$f" in *-BRINGUP-ADBINSECURE.zip) ;; *)
+      mv "$f" "${f%.zip}-BRINGUP-ADBINSECURE.zip" || die "bringup-rename $f";; esac
+  done
+  case "$Z" in *-BRINGUP-ADBINSECURE.zip) ;; *) Z="${Z%.zip}-BRINGUP-ADBINSECURE.zip";; esac
+  [ -z "$(find "$OUTP" -maxdepth 1 -name '*.zip' -samefile "$Z" ! -name '*-BRINGUP-ADBINSECURE.zip')" ] \
+    || die "bringup-rename: an unsuffixed name of the insecure image remains"
   say "BRINGUP build: adb without authorisation. NEVER RELEASE."
 else
   [ "$ADBSEC" = 1 ] || die "ro.adb.secure=$ADBSEC without WITH_ADB_INSECURE (residue of a bring-up build?)"
