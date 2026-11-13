@@ -10,7 +10,8 @@
 #   3. git-lfs payloads are real files, not pointers (chromium-webview came EMPTY 08-18)
 #   4. no tmp_pack_* left by a stalled fetch (stale ones are deleted only after 1-2 pass)
 #   5. AICP, not LineageOS, owns build/make + build/soong (re-pointed checkout, 11-12 (g))
-#   6. `repo status`: no torn worktree (a power cut can tear a checkout without touching its gitdir)
+#   6. `repo status`: no torn worktree (a power cut can tear a checkout without touching its gitdir);
+#      a build host's own patch passes only on an exact per-file diff hash (tools/host-patches.txt)
 set -u
 TOP="${TOP:-/mnt/Data/lineage-23.2}"
 STATUS="${STATUS:-1}"
@@ -65,13 +66,25 @@ if [ "$STATUS" = "1" ]; then
   repo status -j"$(nproc)" > "$W/status" 2>&1
   # The recipe's own tree edits (tree-edits.txt: one path per line, relative to TOP) are the
   # only changes allowed; a project counts as dirty if anything ELSE is changed in it.
-  dirty=0
+  dirty=0; hostp=""
   for p in $(sed -n 's/^project \([^ ]*\)\/ .*/\1/p' "$W/status"); do
     other=$(git -C "$p" status --porcelain --untracked-files=all | sed "s|^...|$p/|" \
             | grep -vxF -f <(grep -v '^#' "$REC/tree-edits.txt" 2>/dev/null) || true)
-    [ -z "$other" ] && continue
-    dirty=$((dirty+1)); echo "      dirty: $p"; echo "$other" | sed 's/^/        /'
+    # a build host's own patch (host-patches.txt) passes only on an exact per-file diff hash
+    rest=""
+    while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      f=${line#"$p/"}; want=$(awk -v f="$line" '$1==f{print $2}' "$REC/tools/host-patches.txt" 2>/dev/null)
+      if [ -n "$want" ] && [ "$(git -C "$p" diff -- "$f" | sha256sum | cut -d' ' -f1)" = "$want" ]; then
+        hostp="$hostp $line"
+      else
+        rest="$rest$line"$'\n'
+      fi
+    done <<< "$other"
+    [ -z "$rest" ] && continue
+    dirty=$((dirty+1)); echo "      dirty: $p"; printf '%s' "$rest" | sed 's/^/        /'
   done
+  [ -n "$hostp" ] && ok "host patch(es) accepted by exact hash (tools/host-patches.txt):$hostp"
   [ "$dirty" -eq 0 ] && ok "repo status: every worktree clean (recipe edits excepted: tree-edits.txt)" || bad "repo status: $dirty dirty project(s)"
 else
   echo "skip  repo status (STATUS=0)"
