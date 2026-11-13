@@ -8,6 +8,11 @@
 #            and release keys stay out of the recipe until a release is decided.
 #   Every aicp-build.sh variable (TOP, OUT_TARGET, PRODUCT, RELEASE, VARIANT, GOAL, DIRTY_OK)
 #   passes through.
+#   WITH_ADB_INSECURE=true   AICP's own switch (vendor/aicp/config/common.mk): ro.debuggable=1,
+#            adb on at boot, NO authorisation. For bring-up on a phone with no usable screen only:
+#            the zip is renamed *-BRINGUP-ADBINSECURE.zip and must never be released.
+#            Without it, AICP userdebug = ro.debuggable=0 + ro.adb.secure=1 (adb off on a fresh /data).
+#            Either way the built props are checked against the mode asked for.
 #
 # WHY (crDroid recipe, 08-19 / 08-28): the steps were correct on paper and nowhere
 # executable, and a build ran on a tree that no longer matched git. So verification comes
@@ -55,6 +60,26 @@ fi
 OUTP="$TOP/out/target/product/S666LN"
 Z=$(ls -t "$OUTP"/aicp_S666LN*.zip 2>/dev/null | head -1)
 [ -n "$Z" ] || die "artifact-not-found in $OUTP"
+
+# The adb mode, from the built props (load order system -> system_ext -> vendor -> product;
+# a later file overrides an earlier one, so the last value is the one init keeps). AICP's
+# gen_build_prop.py writes ro.adb.secure=1 into every userdebug system/build.prop; the switch's 0
+# lives in system_ext and wins at runtime. persist.sys.usb.config is informational: init's
+# update_sys_usb_config() appends adb at boot whenever the effective ro.adb.secure is 0.
+getp(){ cat "$OUTP/system/build.prop" "$OUTP/system_ext/etc/build.prop" "$OUTP/vendor/build.prop" \
+  "$OUTP/product/etc/build.prop" 2>/dev/null | grep "^$1=" | tail -1 | cut -d= -f2-; }
+ADBSEC=$(getp ro.adb.secure); DBG=$(getp ro.debuggable); USBC=$(getp persist.sys.usb.config)
+say "PROPS ro.adb.secure=$ADBSEC ro.debuggable=$DBG persist.sys.usb.config=$USBC"
+if [ -n "${WITH_ADB_INSECURE:-}" ]; then
+  [ "$ADBSEC" = 0 ] && [ "$DBG" = 1 ] \
+    || die "WITH_ADB_INSECURE set but the image is not insecure+debuggable"
+  case "$Z" in *-BRINGUP-ADBINSECURE.zip) ;; *)
+    mv "$Z" "${Z%.zip}-BRINGUP-ADBINSECURE.zip" || die "bringup-rename"; Z="${Z%.zip}-BRINGUP-ADBINSECURE.zip";;
+  esac
+  say "BRINGUP build: adb without authorisation. NEVER RELEASE."
+else
+  [ "$ADBSEC" = 1 ] || die "ro.adb.secure=$ADBSEC without WITH_ADB_INSECURE (residue of a bring-up build?)"
+fi
 say "ARTIFACT $Z  $(stat -c %s "$Z") B"
 say "SHA256 $(sha256sum "$Z" | cut -d' ' -f1)"
 echo "OK artifact=$Z" > "$V"
