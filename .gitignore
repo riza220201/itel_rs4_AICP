@@ -22,3 +22,7 @@ blobs*/
 *.bak-*
 *.swp
 *~
+
+# Markdown: only the root README belongs to the recipe; every other .md stays local.
+*.md
+!/README.md

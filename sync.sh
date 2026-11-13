@@ -7,7 +7,7 @@
 #   repo init -u https://github.com/AICP/platform_manifest.git -b w16.2 --git-lfs --depth=1 --no-clone-bundle
 #   cp <recipe>/local_manifests/S666LN.xml .repo/local_manifests/
 #
-# Why it looks like this (project JOURNAL 11-12 (a), (d), (g)):
+# Why it looks like this (2026-11-12):
 # - single instance (flock): two repo syncs on one .repo is a known trap
 # - shallow: depth comes from `repo init --depth=1`; repo has no --depth flag, and a
 #   retry into a half-fetched project goes FULL depth -> delete its .repo/projects AND

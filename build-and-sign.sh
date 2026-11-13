@@ -9,7 +9,7 @@
 #   Every aicp-build.sh variable (TOP, OUT_TARGET, PRODUCT, RELEASE, VARIANT, GOAL, DIRTY_OK)
 #   passes through.
 #
-# WHY (crDroid recipe, 08-19 / 08-28): the steps were correct in four journals and nowhere
+# WHY (crDroid recipe, 08-19 / 08-28): the steps were correct on paper and nowhere
 # executable, and a build ran on a tree that no longer matched git. So verification comes
 # first and the script REFUSES to build when it fails. Any exit leaves a verdict: silence
 # must never read as success.

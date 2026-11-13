@@ -1,5 +1,5 @@
 #!/bin/bash
-# ⛔ SUPERSEDED 11-13 (project JOURNAL (e), (g)): generic products are a dead end in this tree, the A16
+# ⛔ SUPERSEDED 11-13: generic products are a dead end in this tree, the A16
 # vendor libs come from our device build, and this script still uses an absolute OUT_DIR, which
 # soong rejects (see aicp-build.sh OUT). Kept as the record of what was tried.
 #
@@ -9,7 +9,7 @@
 #   TOP=/mnt/Data/lineage-23.2   OUT_DIR=/mnt/external_nvme/aicp-out
 #   -> $OUT_DIR/a16-vendor-libs/{lib,lib64}/   + RESULT (OK / FAIL <why>)
 #
-# WHY: route L (project JOURNAL 11-13 (d)) puts A16's own vendor variants of the former-VNDK libs
+# WHY: route L (decided 2026-11-13) puts A16's own vendor variants of the former-VNDK libs
 # in /vendor/lib* and gives a stock A12 blob a `-v31` copy only where A16 broke it. Which blobs
 # that is, is measured by the device tree's tools/v31-delta-check.py with
 #     <stock vendor> <A16 libs (this output)> <v31 libs (prebuilts/vndk/v31)>

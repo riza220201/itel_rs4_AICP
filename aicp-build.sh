@@ -15,7 +15,7 @@
 # (lineage-20's bacon.mk did, which is why the crDroid recipe built target-files-package).
 #
 # OUT: /mnt/Data holds the source (155 GB free after the sync); one A16 out was estimated at
-# 130-180 GB (JOURNAL 11-12 (f)), which leaves no margin there. /mnt/external_nvme (USB NVMe,
+# 130-180 GB (estimate of 2026-11-12), which leaves no margin there. /mnt/external_nvme (USB NVMe,
 # ext4) had 256 GB free on 11-13. So the out dir lives there -- but as $TOP/out, a SYMLINK,
 # with OUT_DIR left at its default. An absolute OUT_DIR outside the tree breaks soong:
 #   platform_testing/Android.bp:728 "continuous_instrumentation_metric_tests": Path is outside

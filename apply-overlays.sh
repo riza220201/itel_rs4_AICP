@@ -5,15 +5,15 @@
 # ROM CONFIGURATION ONLY. Idempotent AICP w16.2 / itel RS4 (S666LN) recipe.
 # Re-run after any `repo sync`. Each step is guarded so re-running is safe.
 #
-# WHAT BELONGS HERE, AND WHAT DOES NOT (crDroid recipe, BLUEPRINT §10)
+# WHAT BELONGS HERE, AND WHAT DOES NOT (as in the crDroid recipe)
 #   Device facts live in the three repos -- device_itel_S666LN, -kernel, vendor --
 #   on branch lineage-23.2. This file holds only what is AICP's: ROM identity,
 #   signing, app choices, patches to AICP's own forks. That split matters more on
 #   this tree than it did on crDroid: the vendor is a SHARED base for AICP, the
-#   OriginOS / One UI ports and AOSPA (project JOURNAL 11-12 (h)), so anything
+#   OriginOS / One UI ports and AOSPA (decided 2026-11-12), so anything
 #   AICP-only that leaks into the device repos travels to systems that are not AICP.
 #
-# STEP NUMBERS ARE NEVER RENUMBERED. Journals reference steps by number; a
+# STEP NUMBERS ARE NEVER RENUMBERED. Records refer to steps by number; a
 # withdrawn step keeps its number and becomes a documented no-op.
 #
 set -euo pipefail
@@ -27,7 +27,7 @@ echo "===================================================================="
 
 # --- step 1: the kernel is the imported Neutron v9 vanilla -------------------
 # Not an import. On lineage-23.2 the kernel package COMMITS its prebuilt/
-# (JOURNAL 11-12 (e): a public clone must build, and there is no from-source
+# (2026-11-12: a public clone must build, and there is no from-source
 # fallback), so the import happens once, in the package, by the device tree's
 # import-kernel.sh -- which proves the Image is the one inside the published
 # boot image and runs the KMI gate on both module sets. This step re-checks the
@@ -63,7 +63,7 @@ rm -f "$TREE/prebuilts/misc/protobuf_vendorcompat/.find-ignore"
 
 
 # === FRAMEWORK PATCHES carried from the crDroid recipe (apply-overlays-v2.sh), each
-# re-read against A16 on 2026-11-13 (project JOURNAL 11-13 (k)/(l), RESUME step 7).
+# re-read against A16 on 2026-11-13.
 # The crDroid step number is in each title. Obsolete on A16, so NOT here: crDroid 39
 # (VkNativeBufferANDROID SPEC 11 carries usage3 + ahb, filled natively), 45/46/48
 # (extensions native), 47 (native, conditional), 35/36 (bootctrl and the AIDL power
