@@ -5,6 +5,8 @@
 #   OUT_TARGET=/mnt/external_nvme/aicp-out   where $TOP/out (a symlink) points; see OUT below
 #   PRODUCT=aicp_S666LN RELEASE=bp4a VARIANT=userdebug GOAL=bacon
 #   DIRTY_OK=1                            build an uncommitted device tree (loud; never for a release)
+#   KEEP_GOING=1                          m -k: build everything not behind a failure and report ALL
+#                                         walls in one run (a first build's walls are independent)
 #
 # apply-overlays.sh MUST have been run against TOP first (build-and-sign.sh does both).
 #
@@ -92,7 +94,7 @@ set +u
 source build/envsetup.sh
 lunch "${PRODUCT}-${RELEASE}-${VARIANT}" || { echo "LUNCH_FAILED"; exit 2; }
 date "+BUILD_START %F %T"
-m "$GOAL"
+if [ "${KEEP_GOING:-0}" = 1 ]; then echo "KEEP_GOING=1: m -k"; m -k "$GOAL"; else m "$GOAL"; fi
 rc=$?
 echo "BUILD_RC=$rc"
 date "+BUILD_END %F %T"
