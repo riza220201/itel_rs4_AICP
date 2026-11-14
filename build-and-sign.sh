@@ -5,7 +5,7 @@
 #   (it prints its run dir first; poll <run>/VERDICT, never the PID: setsid forks)
 #
 #   SIGN=1   release-sign after the build (sign-release.sh: sign_target_files_apks -d $KEYS,
-#            default ~/aicp-keys, then ota_from_target_files). Only for VARIANT=user and never
+#            default ~/rs4-release-keys, then ota_from_target_files). Only for VARIANT=user and never
 #            with WITH_ADB_INSECURE; the verdict's artifact is then the SIGNED zip.
 #   Every aicp-build.sh variable (TOP, OUT_TARGET, PRODUCT, RELEASE, VARIANT, GOAL, DIRTY_OK)
 #   passes through.
@@ -38,7 +38,7 @@ say "START $(date -u +%FT%TZ)"
 if [ "$SIGN" = 1 ]; then
   [ -z "${WITH_ADB_INSECURE:-}" ] || die "SIGN=1 with WITH_ADB_INSECURE: a bring-up build is never release-signed"
   [ "${VARIANT:-userdebug}" = user ] || die "SIGN=1 needs VARIANT=user (got ${VARIANT:-userdebug})"
-  [ -d "${KEYS:-$HOME/aicp-keys}" ] || die "SIGN=1 but no key directory ${KEYS:-$HOME/aicp-keys}"
+  [ -d "${KEYS:-$HOME/rs4-release-keys}" ] || die "SIGN=1 but no key directory ${KEYS:-$HOME/rs4-release-keys}"
 fi
 
 say "STAGE verify-sync"
