@@ -4,8 +4,9 @@
 #   setsid nohup bash ~/itel_rs4_AICP/build-and-sign.sh > /dev/null 2>&1 < /dev/null &
 #   (it prints its run dir first; poll <run>/VERDICT, never the PID: setsid forks)
 #
-#   SIGN=1   release-sign after the build. NOT WRITTEN YET: test builds are test-keys,
-#            and release keys stay out of the recipe until a release is decided.
+#   SIGN=1   release-sign after the build (sign-release.sh: sign_target_files_apks -d $KEYS,
+#            default ~/aicp-keys, then ota_from_target_files). Only for VARIANT=user and never
+#            with WITH_ADB_INSECURE; the verdict's artifact is then the SIGNED zip.
 #   Every aicp-build.sh variable (TOP, OUT_TARGET, PRODUCT, RELEASE, VARIANT, GOAL, DIRTY_OK)
 #   passes through.
 #   WITH_ADB_INSECURE=true   AICP's own switch (vendor/aicp/config/common.mk): ro.debuggable=1,
@@ -34,7 +35,11 @@ trap '[ -s "$V" ] || { echo "FAIL unexpected-exit" > "$V"; say "VERDICT FAIL une
 echo "$RUN"
 say "RUN $RUN"
 say "START $(date -u +%FT%TZ)"
-[ "$SIGN" = 1 ] && die "SIGN=1 requested but sign-release.sh is not written yet"
+if [ "$SIGN" = 1 ]; then
+  [ -z "${WITH_ADB_INSECURE:-}" ] || die "SIGN=1 with WITH_ADB_INSECURE: a bring-up build is never release-signed"
+  [ "${VARIANT:-userdebug}" = user ] || die "SIGN=1 needs VARIANT=user (got ${VARIANT:-userdebug})"
+  [ -d "${KEYS:-$HOME/aicp-keys}" ] || die "SIGN=1 but no key directory ${KEYS:-$HOME/aicp-keys}"
+fi
 
 say "STAGE verify-sync"
 bash "$REC/tools/verify-sync.sh" > "$RUN/verify-sync.log" 2>&1 \
@@ -85,6 +90,17 @@ if [ -n "${WITH_ADB_INSECURE:-}" ]; then
   say "BRINGUP build: adb without authorisation. NEVER RELEASE."
 else
   [ "$ADBSEC" = 1 ] || die "ro.adb.secure=$ADBSEC without WITH_ADB_INSECURE (residue of a bring-up build?)"
+fi
+
+if [ "$SIGN" = 1 ]; then
+  [ "$(getp ro.build.type)" = user ] && [ "$DBG" = 0 ] || die "SIGN=1 but the image is not user + ro.debuggable=0"
+  say "STAGE sign (unsigned test-keys artifact kept: $Z)"
+  SNAME="aicp_S666LN-$(date -u +%Y%m%d)-signed"
+  TOP="$TOP" bash "$REC/sign-release.sh" "$SNAME" > "$RUN/sign.log" 2>&1 \
+    || { say "TAIL: $(tail -4 "$RUN/sign.log" | tr '\n' '|')"; die "sign"; }
+  Z="$OUTP/$SNAME.zip"
+  [ -f "$Z" ] || die "signed artifact missing: $Z"
+  say "SIGNED: $(grep -E 'signer DN|OK: signed' "$RUN/sign.log" | tr -s ' ' | tr '\n' '|')"
 fi
 say "ARTIFACT $Z  $(stat -c %s "$Z") B"
 say "SHA256 $(sha256sum "$Z" | cut -d' ' -f1)"
