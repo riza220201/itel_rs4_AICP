@@ -265,6 +265,157 @@ PYGMS
 fi
 
 
+# --- step 7: bypass-charging tile in Game Space  [crDroid 19] -----------------
+# Lets the adapter carry the system load instead of charging the cell, so a long
+# game session on the charger does not cook the battery. A game-bar tile (not a
+# QS tile): people want it while gaming, and AICP ships chaldeaprjkt's Game Space
+# from source (packages/apps/GameSpace, AICP's fork) with the same tile API as
+# crDroid's, so crDroid step 19 ports as is. Measured on this hardware under
+# crDroid: current_now ~396 mA -> ~0 mA -> ~393 mA. Read current_now, not capacity
+# or status (both stay "100" / "Charging"), and use a wall charger: a 500 mA PC
+# port cannot feed a running game, so bypass then looks like a drain.
+#
+# WIRING, and why it is shaped this way:
+#  * Game Space is platform-signed with sharedUserId=android.uid.system, so it
+#    runs as system_app, a coredomain. property.te neverallows every coredomain
+#    except init from setting a vendor property, so a property + init-trigger
+#    bridge is not implementable from here (crDroid's precompiled_sepolicy
+#    refused it). The app writes the node directly; the tile reads it back, so
+#    its UI follows the hardware, and isSupported hides it where the node is
+#    absent (Game Space is a shared app).
+#  * The ONE sepolicy rule it needs, `allow system_app sysfs_aichg_file:file
+#    rw_file_perms;`, is a device fact and already lives in the device tree
+#    (sepolicy/vendor/system_app.te). This step only VERIFIES it.
+#  * Nothing persists the hardware state: the node resets to 0 on reboot, and the
+#    session end ALWAYS writes 0, so a crash can never leave a phone that silently
+#    refuses to charge. The preference persists in AppSettings and is re-applied
+#    at the next session start, the split stayAwake already uses.
+#  * BOTH tiles.xml: layout/ (columnCount 2) and layout-land/ (columnCount 3) are
+#    separate files, and a game runs landscape. Under crDroid the tile shipped in
+#    portrait only and was invisible in-game for three builds.
+echo "== step 7: Game Space bypass-charging tile (crDroid 19) =="
+GS="$TREE/packages/apps/GameSpace/app/src/main"
+GSJ="$GS/java/io/chaldeaprjkt/gamespace"
+SEPOL_AICHG="$TREE/device/itel/S666LN/sepolicy/vendor/system_app.te"
+[ -d "$GSJ" ] || { echo "   *** FATAL: Game Space source not found at $GSJ"; exit 1; }
+
+# 7a: the three new files, kept whole in the recipe
+cp "$HERE/gamespace/ChargeUtils.kt"       "$GSJ/utils/ChargeUtils.kt"
+cp "$HERE/gamespace/BypassChargeTile.kt"  "$GSJ/widget/tiles/BypassChargeTile.kt"
+cp "$HERE/gamespace/ic_charge_bypass.xml" "$GS/res/drawable/ic_charge_bypass.xml"
+echo "   ChargeUtils.kt / BypassChargeTile.kt / ic_charge_bypass.xml staged"
+
+# 7b: surgical edits to existing Game Space files, each guarded on its own marker.
+# A marker must be a DECLARATION, never a bare name another edit writes (crDroid
+# step 13/19 own goal: a guard matching the previous edit's output skipped itself).
+python3 - "$GS" <<'EOP'
+import sys, os
+gs = sys.argv[1]
+gsj = os.path.join(gs, "java/io/chaldeaprjkt/gamespace")
+
+def patch(path, marker, anchor, addition, after=True):
+    with open(path) as f:
+        src = f.read()
+    # dir included: layout/ and layout-land/tiles.xml would log identically
+    name = "%s/%s" % (os.path.basename(os.path.dirname(path)), os.path.basename(path))
+    if marker in src:
+        print("   %s: already patched" % name)
+        return
+    if src.count(anchor) != 1:
+        raise SystemExit("FATAL: anchor found %d times (need 1) in %s:\n%r" % (src.count(anchor), path, anchor))
+    with open(path, "w") as f:
+        f.write(src.replace(anchor, anchor + addition if after else addition + anchor))
+    print("   %s: patched" % name)
+
+patch(os.path.join(gsj, "data/AppSettings.kt"), "var chargeBypass",
+      """    var lockGesture
+        get() = db.getBoolean(KEY_LOCK_GESTURE, false)
+        set(value) = db.edit().putBoolean(KEY_LOCK_GESTURE, value).apply()
+""",
+      """
+    var chargeBypass
+        get() = db.getBoolean(KEY_CHARGE_BYPASS, false)
+        set(value) = db.edit().putBoolean(KEY_CHARGE_BYPASS, value).apply()
+""")
+patch(os.path.join(gsj, "data/AppSettings.kt"), "const val KEY_CHARGE_BYPASS",
+      '        const val KEY_LOCK_GESTURE = "gamespace_lock_gesture"\n',
+      '        const val KEY_CHARGE_BYPASS = "gamespace_charge_bypass"\n')
+
+mm = os.path.join(gsj, "utils/di/MainModule.kt")
+patch(mm, "import io.chaldeaprjkt.gamespace.utils.ChargeUtils",
+      "import io.chaldeaprjkt.gamespace.utils.GameModeUtils\n",
+      "import io.chaldeaprjkt.gamespace.utils.ChargeUtils\n", after=False)
+patch(mm, "fun provideChargeUtils",
+      """    @Provides
+    @Singleton
+    fun provideScreenUtils(@ApplicationContext context: Context) = ScreenUtils(context)
+""",
+      """
+    @Provides
+    @Singleton
+    fun provideChargeUtils() = ChargeUtils()
+""")
+
+ep = os.path.join(gsj, "utils/di/ServiceViewEntryPoint.kt")
+patch(ep, "import io.chaldeaprjkt.gamespace.utils.ChargeUtils",
+      "import io.chaldeaprjkt.gamespace.utils.GameModeUtils\n",
+      "import io.chaldeaprjkt.gamespace.utils.ChargeUtils\n", after=False)
+patch(ep, "fun chargeUtils(): ChargeUtils",
+      "    fun screenUtils(): ScreenUtils\n",
+      "    fun chargeUtils(): ChargeUtils\n")
+
+sess = os.path.join(gsj, "gamebar/SessionService.kt")
+patch(sess, "import io.chaldeaprjkt.gamespace.utils.ChargeUtils",
+      "import io.chaldeaprjkt.gamespace.utils.GameModeUtils\n",
+      "import io.chaldeaprjkt.gamespace.utils.ChargeUtils\n", after=False)
+patch(sess, "lateinit var chargeUtils",
+      """    @Inject
+    lateinit var screenUtils: ScreenUtils
+""",
+      """
+    @Inject
+    lateinit var chargeUtils: ChargeUtils
+""")
+# AICP nests this one level deeper than crDroid (inside commandIntent?.let { }):
+# 16 spaces. With crDroid's 12-space anchor it matched as a SUBSTRING of the
+# 16-space line -- right block, wrong indentation; the anchor is now exact.
+patch(sess, "chargeUtils.bypass = appSettings.chargeBypass",
+      "                screenUtils.lockGesture = appSettings.lockGesture\n",
+      "                chargeUtils.bypass = appSettings.chargeBypass\n")
+# the safety-critical half: always release at session end
+patch(sess, "chargeUtils.bypass = false",
+      "        screenUtils.unbind()\n",
+      "        chargeUtils.bypass = false\n")
+
+for tiles in ("res/layout/tiles.xml", "res/layout-land/tiles.xml"):
+    patch(os.path.join(gs, tiles), "BypassChargeTile",
+          """    <io.chaldeaprjkt.gamespace.widget.tiles.NotificationTile
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+""",
+          """
+    <io.chaldeaprjkt.gamespace.widget.tiles.BypassChargeTile
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+""")
+
+patch(os.path.join(gs, "res/values/strings.xml"), 'name="bypass_charge_title"',
+      '    <string name="stay_awake_title">Stay awake</string>\n',
+      '    <string name="bypass_charge_title">Bypass charging</string>\n')
+EOP
+
+# 7b-verify: every layout variant of tiles.xml carries the tile (enumerated, not
+# assumed: a new qualifier directory must fail here, not ship a missing tile)
+for _t in "$GS"/res/layout*/tiles.xml; do
+  grep -q "BypassChargeTile" "$_t" || { echo "   *** FATAL: BypassChargeTile missing from ${_t#$GS/}"; exit 1; }
+done
+echo "   tile present in: $(cd "$GS" && ls -d res/layout*/tiles.xml | tr '\n' ' ')"
+
+# 7c: the device tree must already grant the write (a device fact, not this recipe's)
+grep -q '^allow system_app sysfs_aichg_file:file rw_file_perms;' "$SEPOL_AICHG" \
+  || { echo "   *** FATAL: device tree lacks 'allow system_app sysfs_aichg_file' ($SEPOL_AICHG)"; exit 1; }
+echo "   device tree grants system_app -> sysfs_aichg_file (rw)"
+
 echo "===================================================================="
 echo " apply-overlays.sh: all steps OK"
 echo "===================================================================="
