@@ -89,7 +89,8 @@ done < <(find "$TMPV" -name build.prop)
 # Only PROPERTY lines count: post_process_props comments out an optional (?=) default that an
 # explicit value overrode (e.g. "#ro.build.description?=... test-keys" under a device's own
 # description), and sign_target_files_apks rightly leaves comments alone (build 18).
-leaks=$(grep -rah -E 'test-keys|dev-keys' "$TMPV" 2>/dev/null | grep -v -E '^[[:space:]]*#')
+# `|| true`: under set -e + pipefail, grep's "no match" (exit 1) in the CLEAN case would end the script.
+leaks=$(grep -rah -E 'test-keys|dev-keys' "$TMPV" 2>/dev/null | grep -v -E '^[[:space:]]*#' || true)
 [ -n "$leaks" ] && { red "   ^ a test-keys/dev-keys string is still in a build.prop property:"; printf '%s\n' "$leaks" | head -5 | sed 's/^/     /'; bad=1; }
 grep -h -E '^ro\.build\.type=|^ro\.debuggable=' "$TMPV"/SYSTEM/build.prop 2>/dev/null | sed 's/^/   /'
 grep -q '^ro.build.type=user$' "$TMPV/SYSTEM/build.prop" 2>/dev/null || { red "   ^ not a user build"; bad=1; }
