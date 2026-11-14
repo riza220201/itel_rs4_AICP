@@ -11,3 +11,14 @@ frameworks/native/libs/nativewindow/AHardwareBuffer.cpp
 art/runtime/gc/heap.cc
 # step 6 (GameManagerService)
 frameworks/base/services/core/java/com/android/server/app/GameManagerService.java
+# step 7 (Game Space bypass-charging tile): 7 edited + 3 new files
+packages/apps/GameSpace/app/src/main/java/io/chaldeaprjkt/gamespace/data/AppSettings.kt
+packages/apps/GameSpace/app/src/main/java/io/chaldeaprjkt/gamespace/gamebar/SessionService.kt
+packages/apps/GameSpace/app/src/main/java/io/chaldeaprjkt/gamespace/utils/di/MainModule.kt
+packages/apps/GameSpace/app/src/main/java/io/chaldeaprjkt/gamespace/utils/di/ServiceViewEntryPoint.kt
+packages/apps/GameSpace/app/src/main/res/layout-land/tiles.xml
+packages/apps/GameSpace/app/src/main/res/layout/tiles.xml
+packages/apps/GameSpace/app/src/main/res/values/strings.xml
+packages/apps/GameSpace/app/src/main/java/io/chaldeaprjkt/gamespace/utils/ChargeUtils.kt
+packages/apps/GameSpace/app/src/main/java/io/chaldeaprjkt/gamespace/widget/tiles/BypassChargeTile.kt
+packages/apps/GameSpace/app/src/main/res/drawable/ic_charge_bypass.xml
