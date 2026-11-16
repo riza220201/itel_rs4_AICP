@@ -8,6 +8,7 @@
 #   DIRTY_OK=1                            build an uncommitted device tree (loud; never for a release)
 #   KEEP_GOING=1                          m -k: build everything not behind a failure and report ALL
 #                                         walls in one run (a first build's walls are independent)
+#   REQUIRE_JAMESDSP=1                    refuse to build without the JamesDSP control app (see below)
 #   JOBS=N                                m -jN (default: soong's own, nproc+2). On a SHARED server
 #                                         set it: nproc there counts every tenant's cores, and the
 #                                         per-user cgroup memory cap is what a -j192 link storm hits
@@ -109,6 +110,16 @@ if [ -n "$(git -C "$DT" status --porcelain)" ]; then
   echo "🔴 DIRTY_OK=1: building UNCOMMITTED device-tree changes; this build is not reproducible"
 fi
 [ -d vendor/itel/S666LN ] || die "vendor/itel/S666LN is missing (vendor tree not generated yet)"
+# JamesDSP's control app is BUILD OUTPUT of the device tree's tools/build-jamesdsp.sh (gitignored). Without it
+# device.mk's guard silently ships AudioFX instead (the first Axion build, 2026-11-17, came out that way).
+# A release build asks for it with REQUIRE_JAMESDSP=1.
+JD="$DT/prebuilts/JamesDSP"
+if [ -s "$JD/JamesDSP.apk" ] && [ -s "$JD/Android.bp" ]; then
+  echo "   JamesDSP control app: present, apk sha256 $(sha256sum "$JD/JamesDSP.apk" | cut -c1-16)"
+else
+  [ "${REQUIRE_JAMESDSP:-0}" = 1 ] && die "REQUIRE_JAMESDSP=1 but $JD lacks JamesDSP.apk + Android.bp (run the device tree's tools/build-jamesdsp.sh)"
+  echo "   JamesDSP control app: ABSENT -> AudioFX ships (device.mk guard)"
+fi
 echo "   RAM ${MEM} + swap ${SWAP} GiB usable, out -> $OUT_TARGET ${FREE} GB free, webview ok, manifest ok"
 echo "   device tree $(git -C "$DT" rev-parse --short HEAD) $(git -C "$DT" log -1 --format=%s | cut -c1-70)"
 
@@ -116,6 +127,12 @@ echo "   device tree $(git -C "$DT" rev-parse --short HEAD) $(git -C "$DT" log -
 set +u
 source build/envsetup.sh
 lunch "${PRODUCT}-${RELEASE}-${VARIANT}" || { echo "LUNCH_FAILED"; exit 2; }
+# Release signing maps the AOSP test certificates onto ours; a build signed with anything else would keep that
+# signer (Axion's envsetup.sh can generate its own keys, 2026-11-17). Refuse before the build, not after it.
+DEVCERT=$(get_build_var DEFAULT_SYSTEM_DEV_CERTIFICATE 2>/dev/null)
+[ "$DEVCERT" = build/make/target/product/security/testkey ] \
+  || { echo "FATAL: dev certificate is '$DEVCERT': the build would not be signed with the test keys our release signing replaces"; exit 3; }
+echo "   dev certificate: $DEVCERT (replaced by release signing)"
 date "+BUILD_START %F %T"
 J=${JOBS:+-j$JOBS}
 if [ "${KEEP_GOING:-0}" = 1 ]; then echo "KEEP_GOING=1: m -k $J"; m $J -k "$GOAL"; else m $J "$GOAL"; fi
