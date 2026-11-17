@@ -22,9 +22,10 @@
 
   <remote name="riza" fetch="https://github.com/riza220201" clone-depth="1" />
 
-  <!-- The device tree. -->
+  <!-- The device tree. Branch mesa of this recipe: lineage-23.2-mesa = lineage-23.2
+       + Mesa GL and PanVK selected instead of the Mali blob (kept for OpenCL). -->
   <project path="device/itel/S666LN" name="device_itel_S666LN"
-           remote="riza" revision="lineage-23.2" />
+           remote="riza" revision="lineage-23.2-mesa" />
 
   <!-- Kernel package: prebuilt/ (the imported Neutron-built v9 vanilla kernel),
        dtb/, dtbo.img, 198 vendor_dlkm + 206 vendor_boot modules (all stock rev 28

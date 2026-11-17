@@ -105,7 +105,7 @@ cmp -s "$REC/local_manifests/S666LN.xml" .repo/local_manifests/S666LN.xml \
 
 # the tree soong reads is the tree we commit to (crDroid 08-19/08-28: a build carried work that
 # had been reverted in git). device/itel/S666LN is a git worktree of the one device repo.
-DT_BRANCH="${DT_BRANCH:-lineage-23.2}"   # the Mesa ROM builds from lineage-23.2-mesa
+DT_BRANCH="${DT_BRANCH:-lineage-23.2-mesa}"   # recipe branch mesa: the Mesa ROM (main: lineage-23.2)
 [ "$(git -C "$DT" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$DT_BRANCH" ] || die "$DT is not on branch $DT_BRANCH"
 if [ -n "$(git -C "$DT" status --porcelain)" ]; then
   [ "${DIRTY_OK:-0}" = 1 ] || die "$DT has uncommitted changes (commit them, or DIRTY_OK=1 for a throwaway test)"
