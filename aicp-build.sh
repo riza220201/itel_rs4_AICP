@@ -5,6 +5,7 @@
 #   OUT_TARGET=/mnt/external_nvme/aicp-out   where $TOP/out (a symlink) points; see OUT below.
 #                                         OUT_TARGET=$TOP/out = a real out dir in the tree
 #   PRODUCT=aicp_S666LN RELEASE=bp4a VARIANT=userdebug GOAL=bacon
+#   DT_BRANCH=lineage-23.2                the device-tree branch the tree must be on (the Mesa ROM: lineage-23.2-mesa)
 #   DIRTY_OK=1                            build an uncommitted device tree (loud; never for a release)
 #   KEEP_GOING=1                          m -k: build everything not behind a failure and report ALL
 #                                         walls in one run (a first build's walls are independent)
@@ -104,12 +105,28 @@ cmp -s "$REC/local_manifests/S666LN.xml" .repo/local_manifests/S666LN.xml \
 
 # the tree soong reads is the tree we commit to (crDroid 08-19/08-28: a build carried work that
 # had been reverted in git). device/itel/S666LN is a git worktree of the one device repo.
-[ "$(git -C "$DT" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "lineage-23.2" ] || die "$DT is not on branch lineage-23.2"
+DT_BRANCH="${DT_BRANCH:-lineage-23.2}"   # the Mesa ROM builds from lineage-23.2-mesa
+[ "$(git -C "$DT" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$DT_BRANCH" ] || die "$DT is not on branch $DT_BRANCH"
 if [ -n "$(git -C "$DT" status --porcelain)" ]; then
   [ "${DIRTY_OK:-0}" = 1 ] || die "$DT has uncommitted changes (commit them, or DIRTY_OK=1 for a throwaway test)"
   echo "🔴 DIRTY_OK=1: building UNCOMMITTED device-tree changes; this build is not reproducible"
 fi
 [ -d vendor/itel/S666LN ] || die "vendor/itel/S666LN is missing (vendor tree not generated yet)"
+# The device tree may turn on the real ged queue fence (system.prop debug.gedkpi.queue_fence=1, read by
+# gedkpi/GedKpiHook.h). Only safe on a mali_kbase without the A16 util_ex->delta_time store at +0x38: this
+# device's A12 ged reserves 0x28 B there, so with real fences the store kills a saved x29 and the kernel
+# panics in ged_kpi_gpu_3d_fence_sync_cb at every boot. Checked on the module the build will ship.
+if grep -q '^debug.gedkpi.queue_fence=1' "$DT/configs/properties/system.prop" 2>/dev/null; then
+  KO=device/itel/S666LN-kernel/modules/vendor_dlkm/mali_kbase_mt6789.ko
+  OD=$(ls prebuilts/clang/host/linux-x86/clang-r*/bin/llvm-objdump 2>/dev/null | tail -1)
+  [ -x "$OD" ] || die "no llvm-objdump under prebuilts/clang to check $KO"
+  KD=$("$OD" -d --no-show-raw-insn --disassemble-symbols=mtk_common_cal_gpu_utilization_ex "$KO")
+  KN=$(printf '%s\n' "$KD" | grep -c -E '^ +[0-9a-f]+:')
+  KS=$(printf '%s\n' "$KD" | grep -c -E 'str[[:space:]]+x[0-9]+, \[x[0-9]+, #0x38\]')
+  [ "$KN" -gt 20 ] || die "$KO: mtk_common_cal_gpu_utilization_ex not found ($KN instructions): cannot prove the fence is safe"
+  [ "$KS" = 0 ] || die "$KO stores util_ex->delta_time at +0x38 while system.prop turns the real ged fence on: that kernel panics"
+  echo "   ged queue fence on: $KO has no +0x38 store ($KN instructions checked)"
+fi
 # JamesDSP's control app is BUILD OUTPUT of the device tree's tools/build-jamesdsp.sh (gitignored). Without it
 # device.mk's guard silently ships AudioFX instead (the first Axion build, 2026-11-17, came out that way).
 # A release build asks for it with REQUIRE_JAMESDSP=1.

@@ -43,6 +43,7 @@
 #include <dlfcn.h>
 #include <unistd.h>
 #include <cstdint>
+#include <cutils/properties.h>
 #include <log/log.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
@@ -138,10 +139,33 @@ inline void onDequeue(uint64_t id, const sp<GraphicBuffer>& buf, const sp<Fence>
  * dequeue path keeps its fence because ged_kpi_dequeue_buffer_ts never calls
  * sync_file_get_fence at all -- it cannot reach the crashing code.
  */
-inline void onQueue(uint64_t id, const sp<GraphicBuffer>& buf, const sp<Fence>& /*fence*/,
+/*
+ * 🔑 THE PANIC'S CAUSE, found later (2026-11-04, located in the kbase 2026-11-17): our
+ * kbase is built against A16 MediaTek headers and writes GpuUtilization_Ex.delta_time at
+ * +0x38; the A12 ged.ko on this device reserves 0x28 B for that struct, so the store
+ * lands on the saved x29 of ged_kpi_push_timestamp's caller. Only the fence callback
+ * reads x29 afterwards -- hence the panic only with a real fence. With fence_fd = -1,
+ * "GPU done" is stamped at queue time, so ged's frame-based DVFS sees t_gpu ~ the frame
+ * interval and never raises the clock (measured: MLBB 42-52 fps at 390 MHz; 60 fps with
+ * the GPU pinned at 1003 MHz).
+ *
+ * So the real fence is OPT-IN, and only safe on a kbase without that store:
+ *   debug.gedkpi.queue_fence=1   read once per process; default 0 = the -1 path above.
+ */
+inline bool queueFenceEnabled() {
+    static const bool enabled = property_get_bool("debug.gedkpi.queue_fence", false);
+    return enabled;
+}
+inline void onQueue(uint64_t id, const sp<GraphicBuffer>& buf, const sp<Fence>& fence,
                     int queuedBufferCount) {
     if (!hooks().queueTag || buf == nullptr) return;
-    hooks().queueTag(id, -1, queuedBufferCount, (int64_t)buf->getId());
+    if (!queueFenceEnabled()) {
+        hooks().queueTag(id, -1, queuedBufferCount, (int64_t)buf->getId());
+        return;
+    }
+    int fd = dupFenceFd(fence);
+    hooks().queueTag(id, fd, queuedBufferCount, (int64_t)buf->getId());
+    if (fd >= 0) close(fd);
 }
 inline void onAcquire(uint64_t id, const sp<GraphicBuffer>& buf) {
     if (!hooks().acquireTag || buf == nullptr) return;
