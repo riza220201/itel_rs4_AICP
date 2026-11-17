@@ -122,7 +122,7 @@ if grep -q '^debug.gedkpi.queue_fence=1' "$DT/configs/properties/system.prop" 2>
   [ -x "$OD" ] || die "no llvm-objdump under prebuilts/clang to check $KO"
   KD=$("$OD" -d --no-show-raw-insn --disassemble-symbols=mtk_common_cal_gpu_utilization_ex "$KO")
   KN=$(printf '%s\n' "$KD" | grep -c -E '^ +[0-9a-f]+:')
-  KS=$(printf '%s\n' "$KD" | grep -c -E 'str[[:space:]]+x[0-9]+, \[x[0-9]+, #0x38\]')
+  KS=$(printf '%s\n' "$KD" | grep -c -E 'str[[:space:]]+x[0-9]+, \[x[0-9]+, #(0x38|56)\]')   # clang 12 objdump prints #56
   [ "$KN" -gt 20 ] || die "$KO: mtk_common_cal_gpu_utilization_ex not found ($KN instructions): cannot prove the fence is safe"
   [ "$KS" = 0 ] || die "$KO stores util_ex->delta_time at +0x38 while system.prop turns the real ged fence on: that kernel panics"
   echo "   ged queue fence on: $KO has no +0x38 store ($KN instructions checked)"
